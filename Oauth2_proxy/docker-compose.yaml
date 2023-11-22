@@ -1,0 +1,23 @@
+version: '3'
+services:
+  oauth2_proxy:
+    image: bitnami/oauth2-proxy
+    container_name: oauth2_proxy
+    ports:
+      - "4180:4180"
+    env_file:
+      - ./oauth2_proxy.env
+    restart: always
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - oauth2_proxy
+    environment:
+      - REACT_APP_OAUTH2_PROXY_URL=http://oauth2_proxy:4180
+    restart: always
