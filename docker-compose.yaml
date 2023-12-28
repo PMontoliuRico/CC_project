@@ -1,0 +1,26 @@
+version: '3'
+
+services:
+  injector:
+    build:
+      context: ./Injector
+    container_name: injector-container
+    ports:
+      - "8080:8080"
+    networks:
+      - my_network
+    depends_on:
+      - object-storage
+
+  object-storage:
+    build:
+      context: ./Object_Storage
+    container_name: object-storage-container
+    ports:
+      - "8585:8585"
+    networks:
+      - my_network
+
+networks:
+  my_network:
+    driver: bridge
