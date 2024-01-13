@@ -10,8 +10,32 @@ async function executeJob(job) {
   const path = __dirname + "/job";
   shell.mkdir(path);
   shell.cd(path);
-  shell.exec(`git clone ${job.source} .`);
-  //shell.rm('-rf', path);
+  result = shell.exec(`git clone ${job.source} .`);
+  if(result.code !== 0) {
+    //job can't exec bc repo
+    //TODO: send to KV that it state is failed
+    //TODO: send to object store the error msje
+    console.log(result.stderr)
+  }
+  parameters = " "
+  for(i in job.parameters) {
+    parameters += `${job.parameters[i]} `;
+  }
+  result = shell.exec(`./run.sh${parameters}`);
+  if(result.code == 0) {
+    //job executed succesfully
+    //TODO: send to KV that it state is completed
+    //TODO: send the result to object store 
+    console.log(result.stdout);
+  }
+  else {
+    //job failed
+    //TODO: send to KV that it state is failed
+    //TODO: send to object store the error msje
+    console.log(result.stderr);
+  }
+  
+  shell.rm('-rf', path);
 }
 
 async function main() {
