@@ -1,7 +1,17 @@
 const NATS = require('nats');
 const shell = require('shelljs')
+const { ReadableStream } = require('node:stream/web');
 
-async function executeJob(job, kv, sc) {
+function readableStreamFrom(data) {
+  return new ReadableStream({
+    start(controller) {
+      controller.enqueue(data);
+      controller.close();
+    },
+  });
+}
+
+async function executeJob(job, kv, sc, os) {
   await kv.put(`${job.user}.${job.id}`, sc.encode('Running'));
   const path = __dirname + '/job';
   shell.mkdir(path);
@@ -9,9 +19,12 @@ async function executeJob(job, kv, sc) {
   result = shell.exec(`git clone ${job.source} .`);
   if(result.code !== 0) {
     //job can't exec bc repo
-    //TODO: send to object store the error msje
+    await os.put({
+      name: job.id,
+    }, readableStreamFrom(sc.encode(result.stderr)));
     await kv.put(`${job.user}.${job.id}`, sc.encode('Failed'));
-    console.log(result.stderr)
+    shell.rm('-rf', path);
+    return;
   }
   parameters = ' '
   for(i in job.parameters) {
@@ -21,37 +34,46 @@ async function executeJob(job, kv, sc) {
   if(result.code == 0) {
     console.log(`${job.user}.${job.id}`)
     //job executed succesfully
-    //TODO: send the result to object store
+    await os.put({
+      name: job.id,
+    }, readableStreamFrom(sc.encode(result.stdout)));
     await kv.put(`${job.user}.${job.id}`, sc.encode('Completed')); 
-    console.log(result.stdout);
   }
   else {
     //job failed
-    //TODO: send to object store the error msje
+    await os.put({
+      name: job.id,
+    }, readableStreamFrom(sc.encode(result.stderr)));
     await kv.put(`${job.user}.${job.id}`, sc.encode('Failed'));
-    console.log(result.stderr);
   }
   
   shell.rm('-rf', path);
 }
 
 async function main() {
-  const natskvUrl = 'nats://localhost:4225';
   const natsQueueUrl = 'nats://localhost:4222';
-  const ncjs = await NATS.connect({ servers: [natskvUrl] });
-  console.log(`connected to ${ncjs.getServer()}`);
-  const ncq = await NATS.connect({ url: natsQueueUrl });
+  const ncq = await NATS.connect({ servers: [natsQueueUrl] });
   console.log(`connected to ${ncq.getServer()}`);
-  const js = await ncjs.jetstream();
-  const kv = await js.views.kv('testing', { history: 5 });
-  const sc = NATS.StringCodec();
 
+  const natskvUrl = 'nats://localhost:4225';
+  const nckv = await NATS.connect({ servers: [natskvUrl] });
+  console.log(`connected to ${nckv.getServer()}`);
+  const jskv = await nckv.jetstream();
+  const kv = await jskv.views.kv('jobs');
+  
+  const natsOsUrl = 'nats://localhost:4228';
+  const ncos = await NATS.connect({ servers: [natsOsUrl] });
+  console.log(`connected to ${ncos.getServer()}`);
+  const jsos = await ncos.jetstream();
+  const os = await jsos.views.os('results', { storage: NATS.StorageType.File });
+
+  const sc = NATS.StringCodec();
   
   groupName  = 'group1'
   const sub = ncq.subscribe('jobs_executors', {queue: groupName });
   (async () => {
     for await (const m of sub) {
-      executeJob(JSON.parse(sc.decode(m.data)), kv, sc);
+      executeJob(JSON.parse(sc.decode(m.data)), kv, sc, os);
     }
     console.log('subscription closed');
   })();
