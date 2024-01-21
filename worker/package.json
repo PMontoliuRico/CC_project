@@ -1,7 +1,6 @@
 {
   "dependencies": {
     "nats": "^2.18.0",
-    "shelljs": "^0.8.5",
-    "uuid": "^9.0.1"
+    "shelljs": "^0.8.5"
   }
 }
