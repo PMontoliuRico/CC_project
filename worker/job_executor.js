@@ -26,11 +26,11 @@ async function executeJob(job, kv, sc, os) {
     shell.rm('-rf', path);
     return;
   }
-  parameters = ' '
+  parameters = ''
   for(i in job.parameters) {
     parameters += `${job.parameters[i]} `;
   }
-  result = shell.exec(`./run.sh${parameters}`);
+  result = shell.exec(`python3 ./main.py ${parameters}`);
   if(result.code == 0) {
     console.log(`${job.user}.${job.id}`)
     //job executed succesfully
