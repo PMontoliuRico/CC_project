@@ -30,13 +30,19 @@ async function executeJob(job, kv, sc, os) {
   for(i in job.parameters) {
     parameters += `${job.parameters[i]} `;
   }
+  start = performance.now();
   result = shell.exec(`python3 ./main.py ${parameters}`);
+  end = performance.now();
+  console.log((end-start).toFixed(3));
   if(result.code == 0) {
-    console.log(`${job.user}.${job.id}`)
     //job executed succesfully
+    objectToStore = {
+      elapsedTime: (end-start)/1000,
+      result: result.stdout
+    }
     await os.put({
       name: job.id,
-    }, readableStreamFrom(sc.encode(result.stdout)));
+    }, readableStreamFrom(sc.encode(JSON.stringify(objectToStore))));
     await kv.put(`${job.user}.${job.id}`, sc.encode('Completed')); 
   }
   else {
