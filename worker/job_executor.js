@@ -13,7 +13,7 @@ function readableStreamFrom(data) {
 
 async function executeJob(job, kv, sc, os) {
   await kv.put(`${job.user}.${job.id}`, sc.encode('Running'));
-  const path = __dirname + '/job';
+  const path = __dirname + `/${job.id}`;
   shell.mkdir(path);
   shell.cd(path);
   result = shell.exec(`git clone ${job.source} .`);
@@ -77,7 +77,6 @@ async function main() {
     }
     console.log('subscription closed');
   })();
-
 }
 
 main();
