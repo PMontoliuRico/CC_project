@@ -1,9 +1,0 @@
-version: '3'
-services:
-    nats:
-        image: nats:2.9.8
-        ports:
-            - "4222:4222"
-            - "8222"
-        volumes:
-            - ./nats-server.conf:/etc/nats/nats.conf  # Monta el archivo de configuración
