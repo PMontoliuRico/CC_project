@@ -1,7 +1,95 @@
 version: '3'
 
 services:
+  natsq-0:
+    image: nats
+    command: [
+      "--http_port", "8222",
+      "--cluster_name", "NATSQ",
+      "--cluster", "nats://0.0.0.0:6222",
+      "--client_advertise", "localhost:4222"
+    ]
+    ports:
+      - "4222:4222"
+    container_name: natsq-0
+    restart: always
+  
+  natsq-1:
+    image: nats
+    command: [
+      "-p", "4223",
+      "--cluster_name", "NATSQ",
+      "--cluster", "nats://0.0.0.0:6222",
+      "--routes", "nats://ruser:T0pS3cr3t@natsq-0:6222",
+      "--client_advertise", "localhost:4223"
+    ]
+    ports:
+      - "4223:4223"
+    container_name: natsq-1
+    restart: always
 
+  natsq-2:
+    image: nats
+    command: [
+      "-p", "4224",
+      "--cluster_name", "NATSQ",
+      "--cluster", "nats://0.0.0.0:6222",
+      "--routes", "nats://ruser:T0pS3cr3t@natsq-0:6222",
+      "--client_advertise", "localhost:4224"
+    ]
+    ports:
+      - "4224:4224"
+    container_name: natsq-2
+    restart: always
+  
+  natskv-0:
+    image: nats
+    command: [
+      "-p", "4225",
+      "--cluster_name", "NATSKV",
+      "--cluster", "nats://0.0.0.0:6223",
+      "--client_advertise", "localhost:4225",
+      "-js", "-p", "4225",
+      "-server_name", "kv0",
+      "-routes", "nats://ruser:T0pS3cr3t@natskv-1:6224,nats://ruser:T0pS3cr3t@natskv-2:6225"
+    ]
+    ports:
+      - "4225:4225"
+    container_name: natskv-0
+    restart: always
+  
+  natskv-1:
+    image: nats
+    command: [
+      "-p", "4226",
+      "--cluster_name", "NATSKV",
+      "--cluster", "nats://0.0.0.0:6224",
+      "--client_advertise", "localhost:4226",
+      "-js", "-p", "4226",
+      "-server_name", "kv1",
+      "-routes", "nats://ruser:T0pS3cr3t@natskv-0:6223,nats://ruser:T0pS3cr3t@natskv-2:6225",
+    ]
+    ports:
+      - "4226:4226"
+    container_name: natskv-1
+    restart: always
+  
+  natskv-2:
+    image: nats
+    command: [
+      "-p", "4227",
+      "--cluster_name", "NATSKV",
+      "--cluster", "nats://0.0.0.0:6225",
+      "--client_advertise", "localhost:4227",
+      "-js", "-p", "4227",
+      "-server_name", "kv2",
+      "-routes", "nats://ruser:T0pS3cr3t@natskv-0:6223,nats://ruser:T0pS3cr3t@natskv-1:6224",
+    ]
+    ports:
+      - "4227:4227"
+    container_name: natskv-2
+    restart: always
+  
   natsos-0:
     image: nats
     command: [
