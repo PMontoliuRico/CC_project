@@ -1,16 +1,19 @@
-FROM python:3.9-slim
+FROM node:20
 
-# Set the working directory
-WORKDIR /app
+WORKDIR /Injector
 
-# Copy injector code
-COPY injector.py requirements.txt ./
+COPY injector.js ./
 
-# Install dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+RUN apt update
 
-# Expose the port on which the service will run
+RUN npm install axios
+
+RUN npm install xml2js
+
+RUN npm install nats
+
+COPY . .
+
 EXPOSE 8080
 
-# Specify the command to run on container start
-CMD ["python", "injector.py"]
+CMD ["node", "injector.js"]
