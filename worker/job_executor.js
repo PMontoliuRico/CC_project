@@ -56,6 +56,8 @@ async function executeJob(job, kv, sc, os) {
 }
 
 async function main() {
+  //le da tiempo a los jetstream de elegir lider
+  await new Promise((resolve) => setTimeout(resolve, 10000));
   const natsQueueUrls = ['nats://localhost:4222', 'nats://localhost:4223', 'nats://localhost:4224'];
   const ncq = await NATS.connect({ servers: natsQueueUrls });
   console.log(`connected to ${ncq.getServer()}`);
