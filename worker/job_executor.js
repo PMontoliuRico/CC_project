@@ -33,7 +33,6 @@ async function executeJob(job, kv, sc, os) {
   start = performance.now();
   result = shell.exec(`python3 ./main.py ${parameters}`);
   end = performance.now();
-  console.log((end-start).toFixed(3));
   if(result.code == 0) {
     //job executed succesfully
     objectToStore = {
@@ -57,18 +56,18 @@ async function executeJob(job, kv, sc, os) {
 }
 
 async function main() {
-  const natsQueueUrl = 'nats://localhost:4222';
-  const ncq = await NATS.connect({ servers: [natsQueueUrl] });
+  const natsQueueUrls = ['nats://localhost:4222', 'nats://localhost:4223', 'nats://localhost:4224'];
+  const ncq = await NATS.connect({ servers: natsQueueUrls });
   console.log(`connected to ${ncq.getServer()}`);
 
-  const natskvUrl = 'nats://localhost:4225';
-  const nckv = await NATS.connect({ servers: [natskvUrl] });
+  const natskvUrls = ['nats://localhost:4225', 'nats://localhost:4226', 'nats://localhost:4227'];
+  const nckv = await NATS.connect({ servers: natskvUrls });
   console.log(`connected to ${nckv.getServer()}`);
   const jskv = await nckv.jetstream();
   const kv = await jskv.views.kv('jobs');
   
-  const natsOsUrl = 'nats://localhost:4228';
-  const ncos = await NATS.connect({ servers: [natsOsUrl] });
+  const natsOsUrls = ['nats://localhost:4228', 'nats://localhost:4229', 'nats://localhost:4230'];
+  const ncos = await NATS.connect({ servers: natsOsUrls });
   console.log(`connected to ${ncos.getServer()}`);
   const jsos = await ncos.jetstream();
   const os = await jsos.views.os('results', { storage: NATS.StorageType.File });
