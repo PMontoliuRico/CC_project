@@ -19,9 +19,10 @@ async function executeJob(job, kv, sc, os) {
   result = shell.exec(`git clone ${job.source} .`);
   if(result.code !== 0) {
     //job can't exec bc repo
+    job.error = result.stderr;
     await os.put({
       name: job.id,
-    }, readableStreamFrom(sc.encode(result.stderr)));
+    }, readableStreamFrom(sc.encode(JSON.stringify(job))));
     await kv.put(`${job.user}.${job.id}`, sc.encode('Failed'));
     shell.rm('-rf', path);
     return;
@@ -35,20 +36,19 @@ async function executeJob(job, kv, sc, os) {
   end = performance.now();
   if(result.code == 0) {
     //job executed succesfully
-    objectToStore = {
-      elapsedTime: (end-start)/1000,
-      result: result.stdout
-    }
+    job.elapsedTime = (end-start)/1000;
+    job.result = result.stdout;
     await os.put({
       name: job.id,
-    }, readableStreamFrom(sc.encode(JSON.stringify(objectToStore))));
+    }, readableStreamFrom(sc.encode(JSON.stringify(job))));
     await kv.put(`${job.user}.${job.id}`, sc.encode('Completed')); 
   }
   else {
     //job failed
+    job.error = result.stderr;
     await os.put({
       name: job.id,
-    }, readableStreamFrom(sc.encode(result.stderr)));
+    }, readableStreamFrom(sc.encode(JSON.stringify(job))));
     await kv.put(`${job.user}.${job.id}`, sc.encode('Failed'));
   }
   
