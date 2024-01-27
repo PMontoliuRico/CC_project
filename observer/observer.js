@@ -31,11 +31,14 @@ async function obtenerDatosCola() {
             datos.push("Número de conexiones: " + conexiones + ".");
 
             // Añadimos un aviso para cuando se esté acercando al límite de conexiones definidas
-            if (conexiones === Math.floor(data_connz.data.limit * 0.75)) {
+            if (conexiones > Math.floor(data_connz.data.limit * 0.75)) {
               console.log("El número de conexiones está llegando a su límite " + data_connz.data.limit + ".");
+            }else if(conexiones === Math.floor(data_connz.data.limit)) {
+              console.log("El número de conexiones ha llegado a su límite.");
+            }else if(conexiones < Math.floor(data_connz.data.limit * 0.1)){
+              console.log("El número de conexiones es muy bajo. Se podría reducir el número de workers");
             }
-          } else {
-            console.log("El número de conexiones ha llegado a su límite.");
+
           }
 
           if (data_varz.data != undefined) {
