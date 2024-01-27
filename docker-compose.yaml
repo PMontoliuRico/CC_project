@@ -1,0 +1,65 @@
+version: '3'
+
+services:
+
+  natsos-0:
+    image: nats
+    command: [
+      "-p", "4228",
+      "--cluster_name", "NATSOS",
+      "--cluster", "nats://0.0.0.0:6226",
+      "--client_advertise", "localhost:4228",
+      "-js", "-p", "4228",
+      "-server_name", "os0",
+      "-routes", "nats://ruser:T0pS3cr3t@natsos-1:6227,nats://ruser:T0pS3cr3t@natsos-2:6228"
+    ]
+    ports:
+      - "4228:4228"
+    container_name: natsos-0
+    restart: always
+  
+  natsos-1:
+    image: nats
+    command: [
+      "-p", "4229",
+      "--cluster_name", "NATSOS",
+      "--cluster", "nats://0.0.0.0:6227",
+      "--client_advertise", "localhost:4229",
+      "-js", "-p", "4229",
+      "-server_name", "os1",
+      "-routes", "nats://ruser:T0pS3cr3t@natsos-0:6226,nats://ruser:T0pS3cr3t@natsos-2:6228",
+    ]
+    ports:
+      - "4229:4229"
+    container_name: natsos-1
+    restart: always
+  
+  natsos-2:
+    image: nats
+    command: [
+      "-p", "4230",
+      "--cluster_name", "NATSOS",
+      "--cluster", "nats://0.0.0.0:6228",
+      "--client_advertise", "localhost:4230",
+      "-js", "-p", "4230",
+      "-server_name", "os2",
+      "-routes", "nats://ruser:T0pS3cr3t@natsos-0:6226,nats://ruser:T0pS3cr3t@natsos-1:6227",
+    ]
+    ports:
+      - "4230:4230"
+    container_name: natsos-2
+    restart: always
+
+  injector:
+    image: injector
+    # build:
+    #   context: ./Injector
+    #   dockerfile: Dockerfile
+    depends_on:
+      - natsos-0
+      - natsos-1
+      - natsos-2
+    environment:
+      - NATS_SERVER=nats://natsos-0:4228
+    network_mode: "host"
+    restart: always
