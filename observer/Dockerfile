@@ -1,7 +1,7 @@
 FROM alpine:3.18
 WORKDIR /app
 RUN apk update
-RUN apk add --update node.js npm
+RUN apk add --update nodejs npm
 COPY observer.js ./
 COPY package-lock.json ./
 COPY package.json ./
