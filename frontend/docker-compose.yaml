@@ -1,26 +1,53 @@
+# version: '3'
+# services:
+#   app:
+#     image: "new-node4"
+#     ports:
+#       - "3000:3000"
+#     depends_on:
+#       - nats
+#     environment:
+#       - NATS_QUEUE_URL=nats://localhost:4222
+#       - NATS_KV_URL=nats://localhost:4225
+
+#   nats:
+#     image: nats:latest
+#     ports:
+#       - "4222:4222"
+#       - "4225:4225"
 version: '3'
-
 services:
-  injector:
-    build:
-      context: ./Injector
-    container_name: injector-container
+  app:
+    image: "new-node4"
     ports:
-      - "8080:8080"
-    networks:
-      - my_network
+      - "3000:3000"
     depends_on:
-      - object-storage
+      - nats
+      - oauth2-proxy
+    environment:
+      - NATS_QUEUE_URL=nats://localhost:4222
+      - NATS_KV_URL=nats://localhost:4225
 
-  object-storage:
-    build:
-      context: ./Object_Storage
-    container_name: object-storage-container
+  nats:
+    image: nats:latest
     ports:
-      - "8585:8585"
-    networks:
-      - my_network
+      - "4222:4222"
+      - "4225:4225"
 
-networks:
-  my_network:
-    driver: bridge
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:latest
+    ports:
+      - "4180:4180"
+    environment:
+      - OAUTH2_PROXY_HTTP_ADDRESS=0.0.0.0:4180
+      - OAUTH2_PROXY_EMAIL_DOMAINS=*
+      - OAUTH2_PROXY_COOKIE_SECURE=false
+      - OAUTH2_PROXY_COOKIE_SECRET=1234567890123456
+      - OAUTH2_PROXY_UPSTREAMS=http://app:3000
+      - OAUTH2_PROXY_PROVIDER=google
+      - OAUTH2_PROXY_CLIENT_ID=385268388735-ds1g0g0h3m8fctps43bagp126cil7au9.apps.googleusercontent.com
+      - OAUTH2_PROXY_CLIENT_SECRET=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
+      - OAUTH2_PROXY_REDIRECT_URL=http://localhost:4180/oauth2/callback
+      - OAUTH2_PROXY_PASS_AUTHORIZATION_HEADER=true
+      - OAUTH2_PROXY_PASS_USER_HEADERS=true
+
