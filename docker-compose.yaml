@@ -4,13 +4,14 @@ services:
   natsq-0:
     image: nats
     command: [
-      "--http_port", "8222",
+      "-m", "8222",
       "--cluster_name", "NATSQ",
       "--cluster", "nats://0.0.0.0:6222",
       "--client_advertise", "localhost:4222"
     ]
     ports:
       - "4222:4222"
+      - "8222:8222"
     container_name: natsq-0
     restart: always
   
@@ -140,9 +141,6 @@ services:
 
   injector:
     image: injector
-    # build:
-    #   context: ./Injector
-    #   dockerfile: Dockerfile
     depends_on:
       - natsos-0
       - natsos-1
@@ -150,4 +148,68 @@ services:
     environment:
       - NATS_SERVER=nats://natsos-0:4228
     network_mode: "host"
+    restart: always
+  
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:latest
+    ports:
+      - "4180:4180"
+    environment:
+      - OAUTH2_PROXY_HTTP_ADDRESS=0.0.0.0:4180
+      - OAUTH2_PROXY_EMAIL_DOMAINS=*
+      - OAUTH2_PROXY_COOKIE_SECURE=false
+      - OAUTH2_PROXY_COOKIE_SECRET=1234567890123456
+      - OAUTH2_PROXY_UPSTREAMS=http://app:3000
+      - OAUTH2_PROXY_PROVIDER=google
+      - OAUTH2_PROXY_CLIENT_ID=385268388735-ds1g0g0h3m8fctps43bagp126cil7au9.apps.googleusercontent.com
+      - OAUTH2_PROXY_CLIENT_SECRET=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
+      - OAUTH2_PROXY_REDIRECT_URL=http://localhost:4180/oauth2/callback
+      - OAUTH2_PROXY_PASS_AUTHORIZATION_HEADER=true
+      - OAUTH2_PROXY_PASS_USER_HEADERS=true
+  
+  app:
+    image: "new-node4"
+    ports:
+      - "3000:3000"
+    depends_on:
+      - natsq-0
+      - natsq-1
+      - natsq-2
+      - natskv-0
+      - natskv-1
+      - natskv-2
+      - natsos-0
+      - natsos-1
+      - natsos-2
+      - oauth2-proxy
+    environment:
+      - NATS_QUEUE_URL=nats://natsq-0:4222
+      - NATS_KV_URL=nats://natskv-0:4225
+    restart: always
+
+  observer:
+    image: "observer"
+    depends_on:
+      - natsq-0
+      - natsq-1
+      - natsq-2
+    network_mode: "host"
+    ports:
+      - "8080:8080"
+    restart: always
+    
+  worker-0:
+    image: worker
+    container_name: worker-0
+    network_mode: "host"
+    depends_on:
+      - natsq-0
+      - natsq-1
+      - natsq-2
+      - natskv-0
+      - natskv-1
+      - natskv-2
+      - natsos-0
+      - natsos-1
+      - natsos-2
     restart: always
