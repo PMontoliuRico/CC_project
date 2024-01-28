@@ -6,17 +6,13 @@ const socketIo = require('socket.io');
 
 async function obtenerDatosCola() {
   try {
-    const nc = await nats.connect({
-      servers: ['localhost:4222'],
-    });
-
-    console.log("Establecemos conexión con el monitor del servidor NATS");
-
     setInterval(async () => {
       try {
         // Utilizando axios para hacer la solicitud HTTP para obtener datos de la cola de mensajes
-        const data_connz = await axios.get("http://localhost:8222/connz");
-        const data_varz = await axios.get("http://localhost:8222/varz");
+        const data_connz = await axios.get("http://127.0.0.0:8222/connz");
+        const data_varz = await axios.get("http://127.0.0.0:8222/varz");
+        console.log("Establecemos conexión con el monitor del servidor NATS");
+    
 
         if (data_connz.data != undefined) {
           const datos = [];
@@ -59,7 +55,7 @@ async function obtenerDatosCola() {
       } catch (error) {
         console.log(error.message);
       }
-    }, 30000); // Ejecutar cada 30 segundos
+    }, 5000); // Ejecutar cada 5 segundos
 
     // Esperar a que el programa se detenga
     await new Promise(resolve => setInterval(resolve, 2147483647));
