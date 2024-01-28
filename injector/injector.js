@@ -50,7 +50,8 @@ async function storeDataInObjectStorage(data) {
 // Recoge la información de la AEMET
 async function getWeatherDataAndStore() {
 
-  await new Promise((resolve) => setTimeout(resolve, 5000));
+  // Delay inicial para dejar que los NATS elijan líder
+  await new Promise((resolve) => setTimeout(resolve, 10000));
   
   while (true) {
 
@@ -96,8 +97,8 @@ async function getWeatherDataAndStore() {
 
     }
 
-    // Intentar ejecución cada 30' 
-    await new Promise((resolve) => setTimeout(resolve, 35995000));
+    // Intentar ejecución cada hora
+    await new Promise((resolve) => setTimeout(resolve, 35990000));
 
   }
 }

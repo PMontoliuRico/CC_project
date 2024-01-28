@@ -14,6 +14,4 @@ RUN npm install nats
 
 COPY . .
 
-EXPOSE 8080
-
 CMD ["node", "injector.js"]
