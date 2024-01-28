@@ -9,6 +9,11 @@ const sc = NATS.StringCodec();
 const session = require('express-session');
 const crypto = require('crypto');
 
+
+global.kv;
+global.ncq;
+global.os;
+
 // Generate a 64-byte random string
 const secret = crypto.randomBytes(64).toString('hex');
 router.use(session({
@@ -18,6 +23,7 @@ router.use(session({
   cookie: { secure: false } // Note: secure should be set to true when in production and using HTTPS
 }));
 console.log(secret);
+
 let nc;
 async function connectToNats() {
   try {
@@ -34,11 +40,7 @@ async function connectToNats() {
   }
 }
 connectToNats().catch(err => console.error(err));
-/**
- * 
- */
-let kv;
-let nckv;
+
 
 async function connectToNatsAndFetchJobs() {
   const natskvUrl = 'nats://nats-kv:4225';
@@ -47,45 +49,18 @@ async function connectToNatsAndFetchJobs() {
   if (!nckv) {
     nckv = await NATS.connect({ servers: [natskvUrl] });
     console.log(`connected to ${nckv.getServer()}`);
+
+    
   }
 
   const jskv = await nckv.jetstream();
 
-  // Check if kv already exists
-  // if (!kv) {
-    // Create the kv or bind to it if it exists
-    kv = await jskv.views.kv('jobs');
-  // }
+  kv = await jskv.views.kv('jobs');
 
   return kv; // You can return the kv object if you need it later
 }
 connectToNatsAndFetchJobs().catch(err => console.error(err));
 
-// Middleware to check for Authorization header and access token
-// function checkAuthHeaders(req, res, next) {
-//     // Check for Authorization header
-//     if (!req.headers.authorization) {
-//         return res.status(403).json({ error: 'No Authorization header sent!' });
-//     }
-
-//     // Check for access token
-//     const authHeaderParts = req.headers.authorization.split(' ');
-//     if (authHeaderParts.length !== 2 || authHeaderParts[0] !== 'Bearer') {
-//         return res.status(403).json({ error: 'No access token sent!' });
-//     }
-
-//     // Extract the access token
-//     const accessToken = authHeaderParts[1];
-
-//     // Attach the access token to the request for later use (if needed)
-//     req.accessToken = accessToken;
-
-//     // Call next() to move to the next middleware/route handler
-//     next();
-// }
-
-// Use the middleware for all routes except the ones that don't require authentication
-// router.use(checkAuthHeaders);
 
 // Route that requires authentication and validates the access token
 const express = require('express');
@@ -100,6 +75,27 @@ router.use(session({
   cookie: { secure: false} // Note: secure should be set to true when in production and using HTTPS
 }));
 
+async function connections() {
+  await new Promise((resolve) => setTimeout(resolve, 10000));
+  const natsQueueUrls = ['nats://natsq-0:4222', 'nats://natsq-1:4223', 'nats://natsq-2:4224'];
+  global.ncq = await NATS.connect({ servers: natsQueueUrls });
+  console.log(`connected to ${global.ncq.getServer()}`);
+ 
+  const natskvUrls = ['nats://natskv-0:4225', 'nats://natskv-1:4226', 'nats://natskv-2:4227'];
+  const nckv = await NATS.connect({ servers: natskvUrls });
+  console.log(`connected to ${nckv.getServer()}`);
+  const jskv = await nckv.jetstream();
+  global.kv = await jskv.views.kv('jobs');
+ 
+  const natsOsUrls = ['nats://natsos-0:4228', 'nats://natsos-1:4229', 'nats://natsos-2:4230'];
+  const ncos = await NATS.connect({ servers: natsOsUrls });
+  console.log(`connected to ${ncos.getServer()}`);
+  const jsos = await ncos.jetstream();
+  global.os = await jsos.views.os('results', { storage: NATS.StorageType.File });
+}
+connections().catch(err => console.error(err));
+ 
+module.exports = router;
 router.get('/', async (req, res) => {
   const user = req.get('x-forwarded-user');
   const email = req.get('x-forwarded-email');
@@ -111,10 +107,10 @@ router.get('/', async (req, res) => {
     res.status(401).send('Not authorized');
   }
   else{
-  const userExists = await kv.get(user);
-  if (!userExists) {
-    await kv.create(user, sc.encode('Basic User'));
-
+    const userExists = await global.kv.get(user);
+    
+    if (!userExists) {
+     await global.kv.create(user, sc.encode('Basic User'));
   }
 
   res.send(`User: ${user}, Email: ${email}`);
@@ -138,17 +134,6 @@ router.post('/sendjob', async (req, res) => {
     const userExists = await kv.get(inputUser);
     console.log('userExists:', userExists);
     if (userExists) {
-
-
-
-      // const user = req.body.user;
- 
-      // console.log(user);
-      // console.log(parameters);
-      // const userx = req.session.user;
-      // console.log(userx);
-        // create an entry - this is similar to a put, but will fail if the
-        // key exists
 
         await kv.create(`${job.user}.${job.id}`, sc.encode('Created'));
         
@@ -188,7 +173,7 @@ router.post('/getajobstate', async (req, res) => {
     if (userExists) {
     let e = await kv.get(`${job.user}.${job.id}`);
     console.log(`value for get ${sc.decode(e.value)}`);
-    res.status(200).send('User created successfully');
+    res.status(200).send('Job state: ' + sc.decode(e.value));
     }
     else{
       res.status(401).send('Not authorized');
@@ -199,38 +184,6 @@ router.post('/getajobstate', async (req, res) => {
   }
 });
 
-// router.post('/getalljobsfromuser', async (req, res) => {  
-//   try {
-//     const user = req.get('x-forwarded-user');
-//     const kv = await connectToNatsAndFetchJobs();
-
-//     // Get all keys that match the user's name followed by a dot
-//     const keysIterator = await kv.keys(`${user}.*`);
-
-//     // Fetch all jobs sent by the user
-//     // if (!Array.isArray(keysIterator)) {
-//     //   console.error('keys is not an array:', keysIterator);
-//     // }
-//     if(user) {
-//     const keys = [];
-//     for await (const key of keysIterator) {
-//       keys.push(key);
-//     }
-//     const jobs = await Promise.all(keys.map(async key => {
-//       const entry = await kv.get(key);
-//       return { key, value: sc.decode(entry.value) };
-//     }));
-
-//     res.status(200).send(jobs);
-//   }
-//   else{
-//     res.status(401).send('Not authorized');
-//   }
-//   } catch (err) {
-//     console.error(err);
-//     res.status(500).send('An error occurred');
-//   }
-// });
 
 router.get('/getalljobsfromuser', async (req, res) => {  
   try {
@@ -247,7 +200,8 @@ router.get('/getalljobsfromuser', async (req, res) => {
       }
       const jobs = await Promise.all(keys.map(async key => {
         const entry = await kv.get(key);
-        return { key, value: sc.decode(entry.value) };
+        const jobId = key.split('.')[1];
+        return { key, jobId, value: sc.decode(entry.value) };
       }));
 
       res.status(200).send(jobs);
