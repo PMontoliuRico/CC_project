@@ -213,3 +213,18 @@ services:
       - natsos-1
       - natsos-2
     restart: always
+  worker-1:
+    image: worker
+    container_name: worker-1
+    network_mode: "host"
+    depends_on:
+      - natsq-0
+      - natsq-1
+      - natsq-2
+      - natskv-0
+      - natskv-1
+      - natskv-2
+      - natsos-0
+      - natsos-1
+      - natsos-2
+    restart: always
