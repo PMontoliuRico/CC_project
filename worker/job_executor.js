@@ -84,6 +84,7 @@ async function main() {
   const sub = ncq.subscribe('jobs_executors', {queue: groupName });
   (async () => {
     for await (const m of sub) {
+      await ncq.publish('worker_monitor', sc.encode('1'));
       executeJob(JSON.parse(sc.decode(m.data)), kv, sc, os);
     }
     console.log('subscription closed');
