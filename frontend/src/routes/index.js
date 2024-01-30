@@ -9,6 +9,10 @@ const sc = NATS.StringCodec();
 const session = require('express-session');
 const crypto = require('crypto');
 
+const {
+  ReadableStream,
+} = require('node:stream/web');
+
 
 global.kv;
 global.ncq;
@@ -23,43 +27,6 @@ router.use(session({
   cookie: { secure: false } // Note: secure should be set to true when in production and using HTTPS
 }));
 console.log(secret);
-
-let nc;
-async function connectToNats() {
-  try {
-    // Use environment variable for NATS server URL
-    const natsQueueUrl = process.env.NATS_QUEUE_URL 
-    console.log(natsQueueUrl);  
-
-    nc = await NATS.connect({ servers: [natsQueueUrl] });
-    console.log('Connected to NATS');
-    return nc;
-  } catch (err) {
-    console.error('Failed to connect to NATS:', err);
-    return null;
-  }
-}
-connectToNats().catch(err => console.error(err));
-
-
-async function connectToNatsAndFetchJobs() {
-  const natskvUrl = 'nats://nats-kv:4225';
-
-  // Check if a connection already exists
-  if (!nckv) {
-    nckv = await NATS.connect({ servers: [natskvUrl] });
-    console.log(`connected to ${nckv.getServer()}`);
-
-    
-  }
-
-  const jskv = await nckv.jetstream();
-
-  kv = await jskv.views.kv('jobs');
-
-  return kv; // You can return the kv object if you need it later
-}
-connectToNatsAndFetchJobs().catch(err => console.error(err));
 
 
 // Route that requires authentication and validates the access token
@@ -94,6 +61,21 @@ async function connections() {
   global.os = await jsos.views.os('results', { storage: NATS.StorageType.File });
 }
 connections().catch(err => console.error(err));
+
+async function fromReadableStream(rs, sc) {
+  result = ""
+  const reader = rs.getReader();
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+    if (value && value.length) {
+      result += sc.decode(value);
+    }
+  }
+  return result;
+}
  
 module.exports = router;
 router.get('/', async (req, res) => {
@@ -119,33 +101,30 @@ router.get('/', async (req, res) => {
 
 router.post('/sendjob', async (req, res) => {
   try {
-    //const user = req.get('x-forwarded-user');
     const inputUser = req.get('x-forwarded-user');
-    const kv = await connectToNatsAndFetchJobs();
     // comprobar si ese user está en el kv
     console.log(inputUser);
-    const nats = await connectToNats();
     const id = uuidv4();
     const body = req.body;
-    const parameters = req.body.parameters;
-    const source = req.body.source;
+    const parameters = body.parameters;
+    const source = body.source;
     const user = inputUser;
     const job = { user: user, id: id, parameters: parameters, source: source}; 
-    const userExists = await kv.get(inputUser);
+    const userExists = await global.kv.get(inputUser);
     console.log('userExists:', userExists);
     if (userExists) {
 
-        await kv.create(`${job.user}.${job.id}`, sc.encode('Created'));
+        await global.kv.create(`${job.user}.${job.id}`, sc.encode('Created'));
         
 
-        await kv.put(`${job.user}.${job.id}`, sc.encode('Queued'));
+        await global.kv.put(`${job.user}.${job.id}`, sc.encode('Queued'));
 
-        if (!nats) {
+        if (!global.ncq) {
           console.error('NATS connection not established');
           res.status(500).send('Internal server error');
           return;
         }
-        await nats.publish('jobs_executors', sc.encode(JSON.stringify(job)));
+        await global.ncq.publish('jobs_executors', sc.encode(JSON.stringify(job)));
       res.status(200).send({ message: 'Job created successfully', jobId: id, user: user/*, email: email*/});
     }
     else{
@@ -161,17 +140,14 @@ router.post('/sendjob', async (req, res) => {
 router.post('/getajobstate', async (req, res) => {
   const inputUser = req.get('x-forwarded-user');
   try {
-    //const user = req.get('x-forwarded-user');
-    //TODO Vver si no tengo que estar conectandome todo el rato
-    const kv = await connectToNatsAndFetchJobs();
-   // const nats = await connectToNats();
+
     const id = req.body.jobId; // Get the id from the request body
     const user = inputUser;
     const job = { user: user, id: id}; 
-    const userExists = await kv.get(inputUser);
+    const userExists = await global.kv.get(inputUser);
     console.log('userExists:', userExists);
     if (userExists) {
-    let e = await kv.get(`${job.user}.${job.id}`);
+    let e = await global.kv.get(`${job.user}.${job.id}`);
     console.log(`value for get ${sc.decode(e.value)}`);
     res.status(200).send('Job state: ' + sc.decode(e.value));
     }
@@ -188,10 +164,8 @@ router.post('/getajobstate', async (req, res) => {
 router.get('/getalljobsfromuser', async (req, res) => {  
   try {
     const user = req.get('x-forwarded-user');
-    const kv = await connectToNatsAndFetchJobs();
-
     // Get all keys that match the user's name followed by a dot
-    const keysIterator = await kv.keys(`${user}.*`);
+    const keysIterator = await global.kv.keys(`${user}.*`);
 
     if(user) {
       const keys = [];
@@ -199,12 +173,33 @@ router.get('/getalljobsfromuser', async (req, res) => {
         keys.push(key);
       }
       const jobs = await Promise.all(keys.map(async key => {
-        const entry = await kv.get(key);
+        const entry = await global.kv.get(key);
         const jobId = key.split('.')[1];
         return { key, jobId, value: sc.decode(entry.value) };
       }));
 
       res.status(200).send(jobs);
+    }
+    else{
+      res.status(401).send('Not authorized');
+    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('An error occurred');
+  }
+});
+
+router.post('/getjobresult', async (req, res) => {  
+  try {
+    const user = req.get('x-forwarded-user');
+    const jobId = req.body.jobId;
+    const userExists = await global.kv.get(user);
+    if (userExists) {
+      console.log(jobId);
+      let e = await global.os.get(jobId);
+      console.log(e);
+      result = await fromReadableStream(e.data, sc);
+      res.status(200).send(JSON.parse(result));
     }
     else{
       res.status(401).send('Not authorized');
