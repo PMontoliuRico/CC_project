@@ -140,7 +140,7 @@ services:
     restart: always
 
   injector:
-    image: injector
+    image: paletopueblo/cc_injector
     depends_on:
       - natsos-0
       - natsos-1
