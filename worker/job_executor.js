@@ -11,6 +11,19 @@ function readableStreamFrom(data) {
   });
 }
 
+async function saveJob(job, state, sc, os, kv) {
+  saved = false;
+  while(!saved) {
+    try {
+      await os.put({
+        name: job.id,
+      }, readableStreamFrom(sc.encode(JSON.stringify(job))));
+      await kv.put(`${job.user}.${job.id}`, sc.encode(state));
+      saved = true;
+    } catch(e) {console.log(e)}
+  }
+}
+
 async function executeJob(job, kv, sc, os) {
   await kv.put(`${job.user}.${job.id}`, sc.encode('Running'));
   const path = __dirname + `/${job.id}`;
@@ -20,10 +33,7 @@ async function executeJob(job, kv, sc, os) {
   if(result.code !== 0) {
     //job can't exec bc repo
     job.error = result.stderr;
-    await os.put({
-      name: job.id,
-    }, readableStreamFrom(sc.encode(JSON.stringify(job))));
-    await kv.put(`${job.user}.${job.id}`, sc.encode('Failed'));
+    await saveJob(job, 'Failed', sc, os, kv);
     shell.rm('-rf', path);
     return;
   }
@@ -38,18 +48,12 @@ async function executeJob(job, kv, sc, os) {
     //job executed succesfully
     job.elapsedTime = (end-start)/1000;
     job.result = result.stdout;
-    await os.put({
-      name: job.id,
-    }, readableStreamFrom(sc.encode(JSON.stringify(job))));
-    await kv.put(`${job.user}.${job.id}`, sc.encode('Completed')); 
+    await saveJob(job, 'Completed', sc, os, kv);
   }
   else {
     //job failed
     job.error = result.stderr;
-    await os.put({
-      name: job.id,
-    }, readableStreamFrom(sc.encode(JSON.stringify(job))));
-    await kv.put(`${job.user}.${job.id}`, sc.encode('Failed'));
+    await saveJob(job, 'Failed', sc, os, kv)
   }
   
   shell.rm('-rf', path);
