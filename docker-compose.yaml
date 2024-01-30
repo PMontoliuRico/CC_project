@@ -182,9 +182,6 @@ services:
       - natsos-1
       - natsos-2
       - oauth2-proxy
-    environment:
-      - NATS_QUEUE_URL=nats://natsq-0:4222
-      - NATS_KV_URL=nats://natskv-0:4225
     restart: always
 
   observer:
@@ -193,9 +190,6 @@ services:
       - natsq-0
       - natsq-1
       - natsq-2
-    network_mode: "host"
-    ports:
-      - "8080:8080"
     restart: always
     
   worker-0:
