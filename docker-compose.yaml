@@ -168,7 +168,7 @@ services:
       - OAUTH2_PROXY_PASS_USER_HEADERS=true
   
   app:
-    image: "new-node4"
+    image: apdel/cc_frontend
     ports:
       - "3000:3000"
     depends_on:
@@ -185,7 +185,7 @@ services:
     restart: always
 
   observer:
-    image: "observer"
+    image: apdel/cc_observer
     depends_on:
       - natsq-0
       - natsq-1
@@ -193,7 +193,7 @@ services:
     restart: always
     
   worker-0:
-    image: worker
+    image: apdel/cc_worker
     container_name: worker-0
     network_mode: "host"
     depends_on:
@@ -208,7 +208,7 @@ services:
       - natsos-2
     restart: always
   worker-1:
-    image: worker
+    image: apdel/cc_worker
     container_name: worker-1
     network_mode: "host"
     depends_on:
